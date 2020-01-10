@@ -1,0 +1,114 @@
+#https://www.elastic.co/guide/en/elasticsearch/reference/master/built-in-users.html#bootstrap-elastic-passwords
+
+version: "3.5"
+
+services:
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.5.1
+    container_name: kibana
+    ports: ["5601:5601"]
+    secrets:
+      - source: kibana.yml
+        target: /usr/share/kibana/config/kibana.yml
+    networks:
+      - elastic
+    depends_on:
+      - es01
+      - es02
+      - es03
+
+  # apm-server:
+  #   image: docker.elastic.co/apm/apm-server:7.5.1
+  #   container_name: apm_server
+  #   ports:
+  #     - 8200:8200
+  #   networks:
+  #     - elastic
+  #   command: --strict.perms=false -e # -e flag to log to stderr and disable syslog/file output
+  #   secrets:
+  #     - source: apm-server.yml
+  #       target: /usr/share/apm-server/apm-server.yml
+  #     - source: apm-server.keystore
+  #       target: /usr/share/apm-server/apm-server.keystore
+  #     - source: ca.crt
+  #       target: /usr/share/apm-server/certs/ca/ca.crt
+  #   volumes:
+  #     - "./scripts/setup-beat.sh:/usr/local/bin/setup-beat.sh:ro"
+  #   depends_on: ["es01", "es02", "es03", "kibana"]
+
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.5.1
+    container_name: es01
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es02,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    ports:
+      - 9201:9200
+    networks:
+      - elastic
+  es02:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.5.1
+    container_name: es02
+    environment:
+      - node.name=es02
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es03
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - 9202:9200
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data02:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+  es03:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.5.1
+    container_name: es03
+    environment:
+      - node.name=es03
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01,es02
+      - cluster.initial_master_nodes=es01,es02,es03
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - 9203:9200
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data03:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+
+volumes:
+  data01:
+    driver: local
+  data02:
+    driver: local
+  data03:
+    driver: local
+
+secrets:
+  kibana.yml:
+    file: ./config/kibana/kibana.yml
+
+networks:
+  elastic:
+    driver: bridge
